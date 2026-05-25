@@ -6,7 +6,7 @@ import { API } from "../api";
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ username: "", password: "" });
+  const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -21,8 +21,8 @@ export function LoginPage() {
         body: JSON.stringify(form),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.non_field_errors?.[0] || "Invalid credentials");
-      login({ username: form.username }, data.token);
+      if (!res.ok) throw new Error(data.detail || "Invalid credentials");
+      login({ username: data.user.username, email: data.user.email }, data.access);
       navigate("/dashboard");
     } catch (err) {
       setError(err.message);
@@ -38,11 +38,13 @@ export function LoginPage() {
         <p style={styles.sub}>Sign in to your EstateHub account</p>
         {error && <div style={styles.error}>{error}</div>}
         <form onSubmit={handleSubmit} style={styles.form}>
-          <label style={styles.label}>Username</label>
-          <input style={styles.input} placeholder="Your username" value={form.username}
-            onChange={(e) => setForm({ ...form, username: e.target.value })} required />
+          <label style={styles.label}>Email</label>
+          <input style={styles.input} type="email" placeholder="Your email"
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })} required />
           <label style={styles.label}>Password</label>
-          <input style={styles.input} type="password" placeholder="Your password" value={form.password}
+          <input style={styles.input} type="password" placeholder="Your password"
+            value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })} required />
           <button type="submit" style={styles.btn} disabled={loading}>
             {loading ? "Signing in..." : "Sign In"}
@@ -57,6 +59,7 @@ export function LoginPage() {
 }
 
 export function RegisterPage() {
+  const { login } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({ username: "", email: "", password: "", password2: "" });
   const [error, setError] = useState("");
@@ -82,13 +85,14 @@ export function RegisterPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(JSON.stringify(data));
-      navigate("/login");
+      login({ username: data.user.username, email: data.user.email }, data.access);
+      navigate("/dashboard");
     } catch (err) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [form, navigate]);
+  }, [form, login, navigate]);
 
   return (
     <div style={styles.page}>

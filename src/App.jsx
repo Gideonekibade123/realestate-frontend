@@ -7,6 +7,7 @@ import ListingDetailPage from "./pages/ListingDetailPage";
 import ListingFormPage from "./pages/ListingFormPage";
 import DashboardPage from "./pages/DashboardPage";
 import { LoginPage, RegisterPage } from "./pages/AuthPages";
+import ActivatePage from "./pages/ActivatePage";
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/activate/:uidb64/:token" element={<ActivatePage />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
