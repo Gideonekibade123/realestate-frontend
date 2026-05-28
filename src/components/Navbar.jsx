@@ -21,6 +21,7 @@ export default function Navbar() {
         {user ? (
           <>
             <Link to="/dashboard" style={styles.link}>Dashboard</Link>
+            <Link to="/change-password" style={styles.link}>Change Password</Link>
             <Link to="/listings/new" style={styles.btnLink}>+ Add Listing</Link>
             <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
           </>
