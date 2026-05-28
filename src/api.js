@@ -5,6 +5,7 @@ export const API = {
   listingDetail: (id) => `${BASE_URL}/api/listings/${id}/`,
   login: `${BASE_URL}/api/auth/login/`,       // ✅ auth not accounts
   register: `${BASE_URL}/api/auth/register/`, // ✅ auth not accounts
+  changePassword: `${BASE_URL}/api/auth/change-password/`,
   mediaURL: (path) => path ? (path.startsWith("http") ? path : `${BASE_URL}${path}`) : null,
 };
 

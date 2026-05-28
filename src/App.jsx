@@ -58,6 +58,7 @@ import ListingFormPage from "./pages/ListingFormPage";
 import DashboardPage from "./pages/DashboardPage";
 import { LoginPage, RegisterPage } from "./pages/AuthPages";
 import ActivatePage from "./pages/ActivatePage";
+import ChangePasswordPage from "./pages/ChangePasswordPage"; // ✅ add import
 import { useEffect } from "react";  // ✅ add this
 import BASE_URL from "./api";       // ✅ add this
 
@@ -81,6 +82,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/activate/:uidb64/:token" element={<ActivatePage />} />
+          <Route path="/change-password" element={<ChangePasswordPage />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
