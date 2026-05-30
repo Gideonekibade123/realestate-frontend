@@ -21,6 +21,12 @@ export default function ForgotPasswordPage() {
         body: JSON.stringify({ email }),
       });
 
+      // ✅ Handle Render cold start returning HTML instead of JSON
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Server is waking up, please wait 30 seconds and try again.");
+      }
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Something went wrong");
 
