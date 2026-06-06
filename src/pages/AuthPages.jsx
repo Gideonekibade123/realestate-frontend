@@ -22,7 +22,7 @@ export function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Invalid credentials");
-      login({ username: data.user.username, email: data.user.email }, data.token);
+      login({ username: data.user.username, email: data.user.email }, data.access);
       navigate("/dashboard");
     } catch (err) {
       setError(err.message);
@@ -88,7 +88,7 @@ export function RegisterPage() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(JSON.stringify(data));
-      login({ username: data.user.username, email: data.user.email }, data.token);
+      login({ username: data.user.username, email: data.user.email }, data.access);
       navigate("/dashboard");
     } catch (err) {
       setError(err.message);
