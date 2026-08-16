@@ -28,7 +28,7 @@ export default function HomePage() {
     <div style={styles.page}>
       <section style={styles.hero}>
         <div style={styles.heroContent}>
-          <p style={styles.heroSub}>Find Your Perfect Place</p>
+          <p style={styles.heroSub}>Find Your Perfect Place here</p>
           <h1 style={styles.heroTitle}>Discover Premium<br />Real Estate</h1>
           <form onSubmit={handleSearch} style={styles.searchForm}>
             <input style={styles.searchInput} placeholder="Search by location or title..."
