@@ -16,12 +16,57 @@ export default function ListingDetailPage() {
   const [activeImg, setActiveImg] = useState(0);
   const [deleting, setDeleting] = useState(false);
 
+  // --- Chat state ---
+  const [chatOpen, setChatOpen] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState("");
+  const [sending, setSending] = useState(false);
+
   useEffect(() => {
     fetch(API.listingDetail(id))
       .then((r) => r.json())
       .then((data) => { setListing(data); setLoading(false); })
       .catch(() => setLoading(false));
   }, [id]);
+
+  // Fetch messages when chat opens, then poll every 4s
+  useEffect(() => {
+    if (!chatOpen) return;
+    const fetchMessages = () => {
+      fetch(`${API.listingDetail(id)}messages/`, {
+        headers: { Authorization: `Token ${token}` },
+      })
+        .then((r) => r.json())
+        .then((data) => setMessages(Array.isArray(data) ? data : []))
+        .catch(() => {});
+    };
+    fetchMessages();
+    const interval = setInterval(fetchMessages, 4000);
+    return () => clearInterval(interval);
+  }, [chatOpen, id, token]);
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim()) return;
+    setSending(true);
+    try {
+      const res = await fetch(`${API.listingDetail(id)}messages/`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Token ${token}`,
+        },
+        body: JSON.stringify({ content: newMessage }),
+      });
+      const data = await res.json();
+      setMessages((prev) => [...prev, data]);
+      setNewMessage("");
+    } catch {
+      // silently ignore for now
+    } finally {
+      setSending(false);
+    }
+  };
 
   const handleDelete = async () => {
     if (!window.confirm("Delete this listing?")) return;
@@ -91,6 +136,13 @@ export default function ListingDetailPage() {
             </div>
             <div style={styles.divider} />
             <a href={`tel:${listing.phone}`} style={styles.contactBtn}>📞 Contact Seller</a>
+
+            {!isOwner && user && (
+              <button onClick={() => setChatOpen(true)} style={styles.chatBtn}>
+                💬 Chat with Seller
+              </button>
+            )}
+
             {isOwner && (
               <div style={styles.ownerActions}>
                 <Link to={`/listings/${id}/edit`} style={styles.editBtn}>Edit Listing</Link>
@@ -102,6 +154,49 @@ export default function ListingDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* --- Chat Modal --- */}
+      {chatOpen && (
+        <div style={styles.modalOverlay} onClick={() => setChatOpen(false)}>
+          <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.modalHeader}>
+              <span>Chat with {listing.seller_name}</span>
+              <button onClick={() => setChatOpen(false)} style={styles.closeBtn}>✕</button>
+            </div>
+            <div style={styles.messageList}>
+              {messages.length === 0 && (
+                <p style={{ color: "#666", textAlign: "center" }}>No messages yet. Say hello!</p>
+              )}
+              {messages.map((msg) => (
+                <div
+                  key={msg.id}
+                  style={{
+                    ...styles.messageBubble,
+                    ...(msg.sender_name === user.username ? styles.myMessage : styles.theirMessage),
+                  }}
+                >
+                  <p style={{ margin: 0 }}>{msg.content}</p>
+                  <span style={styles.msgTime}>
+                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <form onSubmit={handleSendMessage} style={styles.chatInputRow}>
+              <input
+                type="text"
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                placeholder="Type a message..."
+                style={styles.chatInput}
+              />
+              <button type="submit" disabled={sending} style={styles.sendBtn}>
+                {sending ? "..." : "Send"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -134,7 +229,22 @@ const styles = {
   metaValue: { color: "#ccc", fontSize: "0.9rem" },
   phone: { color: "#4caf82", fontSize: "0.9rem", textDecoration: "none" },
   contactBtn: { display: "block", textAlign: "center", padding: "14px", background: "#e8c97e", color: "#0f1117", borderRadius: "8px", textDecoration: "none", fontWeight: 700, fontSize: "1rem", marginTop: "1rem" },
+  chatBtn: { display: "block", width: "100%", textAlign: "center", padding: "14px", background: "#1a1d27", color: "#e8c97e", border: "1px solid #e8c97e", borderRadius: "8px", fontWeight: 700, fontSize: "1rem", marginTop: "0.75rem", cursor: "pointer" },
   ownerActions: { display: "flex", gap: "12px", marginTop: "12px" },
   editBtn: { flex: 1, textAlign: "center", padding: "12px", background: "#1a1d27", color: "#fff", borderRadius: "8px", border: "1px solid #2a2d3a", textDecoration: "none", fontWeight: 600 },
   deleteBtn: { flex: 1, padding: "12px", background: "transparent", color: "#e05252", borderRadius: "8px", border: "1px solid #e05252", cursor: "pointer", fontWeight: 600 },
+
+  // Chat modal styles
+  modalOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 },
+  modal: { background: "#1a1d27", width: "420px", maxWidth: "90vw", height: "560px", borderRadius: "12px", display: "flex", flexDirection: "column", overflow: "hidden" },
+  modalHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", borderBottom: "1px solid #2a2d3a", color: "#fff", fontWeight: 700 },
+  closeBtn: { background: "none", border: "none", color: "#888", fontSize: "1.2rem", cursor: "pointer" },
+  messageList: { flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "10px" },
+  messageBubble: { maxWidth: "75%", padding: "10px 14px", borderRadius: "12px", fontSize: "0.9rem" },
+  myMessage: { alignSelf: "flex-end", background: "#e8c97e", color: "#0f1117" },
+  theirMessage: { alignSelf: "flex-start", background: "#2a2d3a", color: "#fff" },
+  msgTime: { display: "block", fontSize: "0.7rem", opacity: 0.6, marginTop: "4px" },
+  chatInputRow: { display: "flex", gap: "8px", padding: "12px", borderTop: "1px solid #2a2d3a" },
+  chatInput: { flex: 1, padding: "10px 12px", borderRadius: "8px", border: "1px solid #2a2d3a", background: "#0f1117", color: "#fff" },
+  sendBtn: { padding: "10px 16px", borderRadius: "8px", border: "none", background: "#e8c97e", color: "#0f1117", fontWeight: 700, cursor: "pointer" },
 };
