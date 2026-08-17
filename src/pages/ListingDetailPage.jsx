@@ -50,17 +50,25 @@ export default function ListingDetailPage() {
     if (!newMessage.trim()) return;
     setSending(true);
     try {
+
       const res = await fetch(`${API.listingDetail(id)}messages/`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Token ${token}`,
-        },
-        body: JSON.stringify({ content: newMessage }),
-      });
-      const data = await res.json();
-      setMessages((prev) => [...prev, data]);
-      setNewMessage("");
+  method: "POST",
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Token ${token}`,
+  },
+  body: JSON.stringify({ content: newMessage }),
+});
+if (!res.ok) {
+  const err = await res.text();
+  console.error("Failed to send message:", err);
+  alert("Message failed to send: " + err);
+  return;
+}
+const data = await res.json();
+setMessages((prev) => [...prev, data]);
+setNewMessage("");
+
     } catch {
       // silently ignore for now
     } finally {
