@@ -69,11 +69,14 @@ const data = await res.json();
 setMessages((prev) => [...prev, data]);
 setNewMessage("");
 
-    } catch {
-      // silently ignore for now
-    } finally {
-      setSending(false);
-    }
+    // } catch {
+    //   // silently ignore for now
+    // } finally {
+    //   setSending(false);
+    // }
+  
+
+
   };
 
   const handleDelete = async () => {
