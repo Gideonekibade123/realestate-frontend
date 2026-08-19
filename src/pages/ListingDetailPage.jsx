@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { API } from "../api";
 import { useAuth } from "../context/AuthContext";
@@ -21,6 +21,7 @@ export default function ListingDetailPage() {
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const [activePartner, setActivePartner] = useState(null); // { id, name } — only used for owner
 
   useEffect(() => {
     fetch(API.listingDetail(id))
@@ -34,49 +35,86 @@ export default function ListingDetailPage() {
     if (!chatOpen) return;
     const fetchMessages = () => {
       fetch(`${API.listingDetail(id)}messages/`, {
-        headers: { Authorization: `Token ${token}` },
+        headers: { Authorization: `Bearer ${token}` },
       })
-        .then((r) => r.json())
+        .then((r) => {
+          if (!r.ok) throw new Error(`Status ${r.status}`);
+          return r.json();
+        })
         .then((data) => setMessages(Array.isArray(data) ? data : []))
-        .catch(() => {});
+        .catch((err) => console.error("Failed to fetch messages:", err));
     };
     fetchMessages();
     const interval = setInterval(fetchMessages, 4000);
     return () => clearInterval(interval);
   }, [chatOpen, id, token]);
 
+  const isOwner = user && listing && user.username === listing.owner;
+
+  // Group messages into per-buyer conversations (owner view only)
+  const conversations = useMemo(() => {
+    if (!isOwner || !user) return [];
+    const map = new Map();
+    messages.forEach((msg) => {
+      const isMine = msg.sender_name === user.username;
+      const partnerId = isMine ? msg.receiver : msg.sender;
+      const partnerName = isMine ? msg.receiver_name : msg.sender_name;
+      if (!map.has(partnerId)) {
+        map.set(partnerId, { id: partnerId, name: partnerName, messages: [], lastTimestamp: msg.timestamp });
+      }
+      const convo = map.get(partnerId);
+      convo.messages.push(msg);
+      if (new Date(msg.timestamp) > new Date(convo.lastTimestamp)) {
+        convo.lastTimestamp = msg.timestamp;
+      }
+    });
+    return Array.from(map.values()).sort(
+      (a, b) => new Date(b.lastTimestamp) - new Date(a.lastTimestamp)
+    );
+  }, [messages, isOwner, user]);
+
+  const activeThreadMessages = isOwner
+    ? (activePartner
+        ? messages.filter((m) =>
+            (m.sender_name === user.username && m.receiver === activePartner.id) ||
+            (m.receiver_name === user.username && m.sender === activePartner.id)
+          )
+        : [])
+    : messages;
+
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
+    if (isOwner && !activePartner) return;
     setSending(true);
     try {
-
+      const body = { content: newMessage };
+      if (isOwner && activePartner) {
+        body.receiver = activePartner.id;
+      }
       const res = await fetch(`${API.listingDetail(id)}messages/`, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-    Authorization: `Token ${token}`,
-  },
-  body: JSON.stringify({ content: newMessage }),
-});
-if (!res.ok) {
-  const err = await res.text();
-  console.error("Failed to send message:", err);
-  alert("Message failed to send: " + err);
-  return;
-}
-const data = await res.json();
-setMessages((prev) => [...prev, data]);
-setNewMessage("");
-
-    // } catch {
-    //   // silently ignore for now
-    // } finally {
-    //   setSending(false);
-    // }
-  
-
-
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const err = await res.text();
+        console.error("Failed to send message:", err);
+        alert("Message failed to send: " + err);
+        return;
+      }
+      const data = await res.json();
+      setMessages((prev) => [...prev, data]);
+      setNewMessage("");
+    } catch (err) {
+      console.error("Network error sending message:", err);
+      alert("Network error — please try again.");
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -84,7 +122,7 @@ setNewMessage("");
     setDeleting(true);
     await fetch(API.listingDetail(id), {
       method: "DELETE",
-      headers: { Authorization: `Token ${token}` },
+      headers: { Authorization: `Bearer ${token}` },
     });
     navigate("/listings");
   };
@@ -93,7 +131,6 @@ setNewMessage("");
   if (!listing) return <div style={styles.center}><p style={{ color: "#666" }}>Listing not found</p></div>;
 
   const images = listing.images || [];
-  const isOwner = user && user.username === listing.owner;
 
   return (
     <div style={styles.page}>
@@ -156,6 +193,17 @@ setNewMessage("");
 
             {isOwner && (
               <div style={styles.ownerActions}>
+                <button
+                  onClick={() => { setChatOpen(true); setActivePartner(null); }}
+                  style={{ ...styles.chatBtn, marginTop: 0 }}
+                >
+                  💬 View Messages
+                </button>
+              </div>
+            )}
+
+            {isOwner && (
+              <div style={styles.ownerActions}>
                 <Link to={`/listings/${id}/edit`} style={styles.editBtn}>Edit Listing</Link>
                 <button onClick={handleDelete} disabled={deleting} style={styles.deleteBtn}>
                   {deleting ? "Deleting..." : "Delete Listing"}
@@ -168,43 +216,73 @@ setNewMessage("");
 
       {/* --- Chat Modal --- */}
       {chatOpen && (
-        <div style={styles.modalOverlay} onClick={() => setChatOpen(false)}>
+        <div style={styles.modalOverlay} onClick={() => { setChatOpen(false); setActivePartner(null); }}>
           <div style={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div style={styles.modalHeader}>
-              <span>Chat with {listing.seller_name}</span>
-              <button onClick={() => setChatOpen(false)} style={styles.closeBtn}>✕</button>
+              <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                {isOwner && activePartner && (
+                  <button onClick={() => setActivePartner(null)} style={styles.backBtn}>←</button>
+                )}
+                {isOwner
+                  ? (activePartner ? `Chat with ${activePartner.name}` : "Conversations")
+                  : `Chat with ${listing.seller_name}`}
+              </span>
+              <button onClick={() => { setChatOpen(false); setActivePartner(null); }} style={styles.closeBtn}>✕</button>
             </div>
-            <div style={styles.messageList}>
-              {messages.length === 0 && (
-                <p style={{ color: "#666", textAlign: "center" }}>No messages yet. Say hello!</p>
-              )}
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  style={{
-                    ...styles.messageBubble,
-                    ...(msg.sender_name === user.username ? styles.myMessage : styles.theirMessage),
-                  }}
-                >
-                  <p style={{ margin: 0 }}>{msg.content}</p>
-                  <span style={styles.msgTime}>
-                    {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                  </span>
+
+            {isOwner && !activePartner ? (
+              <div style={styles.messageList}>
+                {conversations.length === 0 && (
+                  <p style={{ color: "#666", textAlign: "center" }}>No conversations yet.</p>
+                )}
+                {conversations.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => setActivePartner({ id: c.id, name: c.name })}
+                    style={styles.conversationItem}
+                  >
+                    <span style={styles.conversationName}>{c.name}</span>
+                    <span style={styles.conversationPreview}>
+                      {c.messages[c.messages.length - 1]?.content}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <>
+                <div style={styles.messageList}>
+                  {activeThreadMessages.length === 0 && (
+                    <p style={{ color: "#666", textAlign: "center" }}>No messages yet. Say hello!</p>
+                  )}
+                  {activeThreadMessages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      style={{
+                        ...styles.messageBubble,
+                        ...(msg.sender_name === user.username ? styles.myMessage : styles.theirMessage),
+                      }}
+                    >
+                      <p style={{ margin: 0 }}>{msg.content}</p>
+                      <span style={styles.msgTime}>
+                        {new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-            <form onSubmit={handleSendMessage} style={styles.chatInputRow}>
-              <input
-                type="text"
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Type a message..."
-                style={styles.chatInput}
-              />
-              <button type="submit" disabled={sending} style={styles.sendBtn}>
-                {sending ? "..." : "Send"}
-              </button>
-            </form>
+                <form onSubmit={handleSendMessage} style={styles.chatInputRow}>
+                  <input
+                    type="text"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    placeholder="Type a message..."
+                    style={styles.chatInput}
+                  />
+                  <button type="submit" disabled={sending} style={styles.sendBtn}>
+                    {sending ? "..." : "Send"}
+                  </button>
+                </form>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -250,6 +328,7 @@ const styles = {
   modal: { background: "#1a1d27", width: "420px", maxWidth: "90vw", height: "560px", borderRadius: "12px", display: "flex", flexDirection: "column", overflow: "hidden" },
   modalHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", borderBottom: "1px solid #2a2d3a", color: "#fff", fontWeight: 700 },
   closeBtn: { background: "none", border: "none", color: "#888", fontSize: "1.2rem", cursor: "pointer" },
+  backBtn: { background: "none", border: "none", color: "#e8c97e", fontSize: "1.1rem", cursor: "pointer", padding: 0 },
   messageList: { flex: 1, overflowY: "auto", padding: "16px", display: "flex", flexDirection: "column", gap: "10px" },
   messageBubble: { maxWidth: "75%", padding: "10px 14px", borderRadius: "12px", fontSize: "0.9rem" },
   myMessage: { alignSelf: "flex-end", background: "#e8c97e", color: "#0f1117" },
@@ -258,4 +337,7 @@ const styles = {
   chatInputRow: { display: "flex", gap: "8px", padding: "12px", borderTop: "1px solid #2a2d3a" },
   chatInput: { flex: 1, padding: "10px 12px", borderRadius: "8px", border: "1px solid #2a2d3a", background: "#0f1117", color: "#fff" },
   sendBtn: { padding: "10px 16px", borderRadius: "8px", border: "none", background: "#e8c97e", color: "#0f1117", fontWeight: 700, cursor: "pointer" },
+  conversationItem: { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "4px", width: "100%", padding: "12px 14px", borderRadius: "10px", background: "#0f1117", border: "1px solid #2a2d3a", color: "#fff", cursor: "pointer", textAlign: "left" },
+  conversationName: { fontWeight: 700, color: "#e8c97e" },
+  conversationPreview: { fontSize: "0.85rem", color: "#999", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", width: "100%" },
 };

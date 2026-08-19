@@ -8,10 +8,10 @@ export default function ActivatePage() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    fetch(`${import.meta.env.VITE_API_URL}/api/auth/activate/${uidb64}/${token}/`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.detail === "Account activated successfully! You can now login.") {
+    fetch(API.activateAccount(uidb64, token))
+      .then(async (r) => {
+        const data = await r.json();
+        if (r.ok) {
           setStatus("success");
         } else {
           setStatus("error");
