@@ -2,9 +2,11 @@ import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { API } from "../api";
+import { authFetch } from "../authFetch";
 
 export default function ChangePasswordPage() {
-  const { token, logout } = useAuth();
+  const auth = useAuth();
+  const { logout } = auth;
   const navigate = useNavigate();
   const [form, setForm] = useState({ old_password: "", new_password: "", confirm_password: "" });
   const [error, setError] = useState("");
@@ -28,17 +30,14 @@ export default function ChangePasswordPage() {
 
     setLoading(true);
     try {
-      const res = await fetch(`${API.changePassword}`, {
+      const res = await authFetch(`${API.changePassword}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,  // ✅ JWT token
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           old_password: form.old_password,
           new_password: form.new_password,
         }),
-      });
+      }, auth);
 
       const data = await res.json();
 
@@ -58,7 +57,7 @@ export default function ChangePasswordPage() {
     } finally {
       setLoading(false);
     }
-  }, [form, token, logout, navigate]);
+  }, [form, auth, logout, navigate]);
 
   return (
     <div style={styles.page}>

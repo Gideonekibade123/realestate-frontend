@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { API } from "../api";
 import { useAuth } from "../context/AuthContext";
+import { authFetch } from "../authFetch";
 
 const CATEGORY_COLORS = {
   sale: "#4caf82", rent: "#5b9bd5", buy: "#e8c97e", lease: "#c97eb0",
@@ -9,7 +10,8 @@ const CATEGORY_COLORS = {
 
 export default function ListingDetailPage() {
   const { id } = useParams();
-  const { user, token } = useAuth();
+  const auth = useAuth();
+  const { user } = auth;
   const navigate = useNavigate();
   const [listing, setListing] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -34,9 +36,7 @@ export default function ListingDetailPage() {
   useEffect(() => {
     if (!chatOpen) return;
     const fetchMessages = () => {
-      fetch(`${API.listingDetail(id)}messages/`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
+      authFetch(`${API.listingDetail(id)}messages/`, {}, auth)
         .then((r) => {
           if (!r.ok) throw new Error(`Status ${r.status}`);
           return r.json();
@@ -47,7 +47,7 @@ export default function ListingDetailPage() {
     fetchMessages();
     const interval = setInterval(fetchMessages, 4000);
     return () => clearInterval(interval);
-  }, [chatOpen, id, token]);
+  }, [chatOpen, id, auth]);
 
   const isOwner = user && listing && user.username === listing.owner;
 
@@ -92,14 +92,11 @@ export default function ListingDetailPage() {
       if (isOwner && activePartner) {
         body.receiver = activePartner.id;
       }
-      const res = await fetch(`${API.listingDetail(id)}messages/`, {
+      const res = await authFetch(`${API.listingDetail(id)}messages/`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
-      });
+      }, auth);
       if (!res.ok) {
         const err = await res.text();
         console.error("Failed to send message:", err);
@@ -120,10 +117,7 @@ export default function ListingDetailPage() {
   const handleDelete = async () => {
     if (!window.confirm("Delete this listing?")) return;
     setDeleting(true);
-    await fetch(API.listingDetail(id), {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    await authFetch(API.listingDetail(id), { method: "DELETE" }, auth);
     navigate("/listings");
   };
 

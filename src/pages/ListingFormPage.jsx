@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { API } from "../api";
+import { authFetch } from "../authFetch";
 
 export default function ListingFormPage() {
   const { id } = useParams();
-  const { token } = useAuth();
+  const auth = useAuth();
   const navigate = useNavigate();
   const isEdit = Boolean(id);
 
@@ -13,6 +14,9 @@ export default function ListingFormPage() {
     title: "", description: "", price: "",
     category: "sale", location: "", phone: "",
   });
+  const [existingImages, setExistingImages] = useState([]);
+  const [newImages, setNewImages] = useState([]);
+  const [previews, setPreviews] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -20,13 +24,22 @@ export default function ListingFormPage() {
     if (isEdit) {
       fetch(API.listingDetail(id))
         .then((r) => r.json())
-        .then((data) => setForm({
-          title: data.title, description: data.description,
-          price: data.price, category: data.category,
-          location: data.location, phone: data.phone,
-        }));
+        .then((data) => {
+          setForm({
+            title: data.title, description: data.description,
+            price: data.price, category: data.category,
+            location: data.location, phone: data.phone,
+          });
+          setExistingImages(data.images || []);
+        });
     }
   }, [id, isEdit]);
+
+  const handleImageChange = (e) => {
+    const files = Array.from(e.target.files || []);
+    setNewImages(files);
+    setPreviews(files.map((f) => URL.createObjectURL(f)));
+  };
 
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
@@ -34,11 +47,15 @@ export default function ListingFormPage() {
     try {
       const url = isEdit ? API.listingDetail(id) : API.listings;
       const method = isEdit ? "PUT" : "POST";
-      const res = await fetch(url, {
+
+      const formData = new FormData();
+      Object.entries(form).forEach(([key, value]) => formData.append(key, value));
+      newImages.forEach((file) => formData.append("images", file));
+
+      const res = await authFetch(url, {
         method,
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify(form),
-      });
+        body: formData,
+      }, auth);
       const data = await res.json();
       if (!res.ok) throw new Error(JSON.stringify(data));
       navigate(`/listings/${data.id}`);
@@ -47,7 +64,7 @@ export default function ListingFormPage() {
     } finally {
       setLoading(false);
     }
-  }, [form, token, id, isEdit, navigate]);
+  }, [form, newImages, auth, id, isEdit, navigate]);
 
   return (
     <div style={styles.page}>
@@ -92,6 +109,30 @@ export default function ListingFormPage() {
                 placeholder="Describe the property..."
                 value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} required />
             </div>
+            <div style={{ ...styles.field, gridColumn: "1 / -1" }}>
+              <label style={styles.label}>Property Images</label>
+              <input
+                style={styles.input}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleImageChange}
+              />
+              {isEdit && existingImages.length > 0 && (
+                <div style={styles.imageRow}>
+                  {existingImages.map((img) => (
+                    <img key={img.id} src={API.mediaURL(img.image)} alt="" style={styles.thumb} />
+                  ))}
+                </div>
+              )}
+              {previews.length > 0 && (
+                <div style={styles.imageRow}>
+                  {previews.map((src, i) => (
+                    <img key={i} src={src} alt="" style={styles.thumb} />
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
           <div style={styles.actions}>
             <button type="button" onClick={() => navigate(-1)} style={styles.cancelBtn}>Cancel</button>
@@ -115,6 +156,8 @@ const styles = {
   field: { display: "flex", flexDirection: "column", gap: "6px" },
   label: { fontSize: "0.8rem", color: "#888", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.5px" },
   input: { padding: "12px 16px", borderRadius: "8px", border: "1px solid #2a2d3a", background: "#1a1d27", color: "#fff", fontSize: "0.95rem", outline: "none", width: "100%" },
+  imageRow: { display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "10px" },
+  thumb: { width: "80px", height: "80px", objectFit: "cover", borderRadius: "8px", border: "1px solid #2a2d3a" },
   actions: { display: "flex", gap: "12px", marginTop: "2rem", justifyContent: "flex-end" },
   cancelBtn: { padding: "12px 24px", background: "transparent", border: "1px solid #2a2d3a", color: "#ccc", borderRadius: "8px", cursor: "pointer", fontWeight: 600 },
   submitBtn: { padding: "12px 32px", background: "#e8c97e", color: "#0f1117", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: 700, fontSize: "1rem" },

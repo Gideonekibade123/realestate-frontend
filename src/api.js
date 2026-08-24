@@ -10,6 +10,7 @@ export const API = {
   resetPassword: (uidb64, token) => `${BASE_URL}/api/auth/reset-password/${uidb64}/${token}/`,
   mediaURL: (path) => path ? (path.startsWith("http") ? path : `${BASE_URL}${path}`) : null,
   activateAccount: (uidb64, token) => `${BASE_URL}/api/auth/activate/${uidb64}/${token}/`,
+  tokenRefresh: `${BASE_URL}/api/auth/token/refresh/`,
 };
 
 export default BASE_URL;

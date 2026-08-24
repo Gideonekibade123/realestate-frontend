@@ -3,16 +3,18 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import ListingCard from "../components/ListingCard";
 import { API } from "../api";
+import { authFetch } from "../authFetch";
 
 export default function DashboardPage() {
-  const { user, token } = useAuth();
+  const auth = useAuth();
+  const { user } = auth;
   const navigate = useNavigate();
   const [listings, setListings] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) { navigate("/login"); return; }
-    fetch(API.listings, { headers: { Authorization: `Token ${token}` } })
+    authFetch(API.listings, {}, auth)
       .then((r) => r.json())
       .then((data) => {
         const all = Array.isArray(data) ? data : data.results || [];
@@ -20,7 +22,7 @@ export default function DashboardPage() {
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, [user, token, navigate]);
+  }, [user, auth, navigate]);
 
   const active = listings.filter((l) => !l.is_sold);
   const sold = listings.filter((l) => l.is_sold);
